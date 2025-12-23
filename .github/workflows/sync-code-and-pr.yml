@@ -67,7 +67,7 @@ jobs:
           # 清空目标目录
           rm -rf fork/repo/js/AutoCommission/*
           # 复制代码，排除指定目录和文件
-          rsync -av --exclude='.idea' --exclude='.github' --exclude='LICENSE' --exclude='Sync-To-Fork.ps1' --exclude='fork' ./ fork/repo/js/AutoCommission/
+          rsync -av --exclude='.idea' --exclude='.github' --exclude='LICENSE' --exclude='.gitattributes' --exclude='fork' ./ fork/repo/js/AutoCommission/
 
       - name: 获取上次同步的哈希值
         id: get-last-hash

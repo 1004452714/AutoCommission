@@ -197,7 +197,7 @@ jobs:
           -d @- <<- EOF
               {
                 "title": "同步AutoCommission更新",
-                "body": $PR_BODY_ESCAPED,
+                "body": "$PR_BODY_ESCAPED",
                 "head": "1004452714:${{ steps.create-branch-name.outputs.branch_name }}",
                 "base": "main"
               }

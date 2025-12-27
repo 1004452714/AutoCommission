@@ -142,7 +142,7 @@ jobs:
           # 获取所有tag并按版本号排序（最新的在最后）
           ALL_TAGS=$(git tag -l "v*" | sort -V)
           # 转换为数组
-          IFS=$'\n' read -r -d '' -a TAGS_ARRAY <<< "$ALL_TAGS"
+          mapfile -t TAGS_ARRAY <<< "$ALL_TAGS"
           TAG_COUNT=${#TAGS_ARRAY[@]}
           
           if [ $TAG_COUNT -ge 2 ]; then

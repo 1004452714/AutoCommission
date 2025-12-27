@@ -180,21 +180,25 @@ jobs:
 
       - name: 使用GitHub API创建PR
         if: steps.check-changes.outputs.has_changes == 'true'
-        env:
-          PR_BODY: ${{ format('此PR同步了AutoCommission仓库的最新更新。{0}', steps.get-commit-messages.outputs.has_commits == 'true' ? format('\n\n上次同步以来的变更：\n{0}', steps.get-commit-messages.outputs.commits) : '') }}
         run: |
+          PR_BODY="此PR同步了AutoCommission仓库的最新更新。"
+          if [ "${{ steps.get-commit-messages.outputs.has_commits }}" = "true" ]; then
+            # 当has_commits为true时，追加提交信息内容
+            PR_BODY="${PR_BODY}\n\n上次同步以来的变更：\n${{ steps.get-commit-messages.outputs.commits }}"
+          fi
+
           # 转义特殊字符，避免JSON报错（必须保留，否则换行符会破坏JSON格式）
           PR_BODY_ESCAPED=$(echo "$PR_BODY" | jq -R -s '.')
           # 调用GitHub API创建PR
           curl -X POST \
-            -H "Authorization: token ${{ secrets.SYNC_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/1004452714/bettergi-scripts-list/pulls \
-            -d @- << EOF
-          {
-            "title": "同步AutoCommission更新",
-            "body": $PR_BODY_ESCAPED,
-            "head": "1004452714:${{ steps.create-branch-name.outputs.branch_name }}",
-            "base": "main"
-          }
+          -H "Authorization: token ${{ secrets.SYNC_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/1004452714/bettergi-scripts-list/pulls \
+          -d @- <<- EOF
+              {
+                "title": "同步AutoCommission更新",
+                "body": $PR_BODY_ESCAPED,
+                "head": "1004452714:${{ steps.create-branch-name.outputs.branch_name }}",
+                "base": "main"
+              }
           EOF

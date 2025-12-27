@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY_CURRENT }}
 
       - name: 配置Git
         run: |
@@ -28,7 +28,7 @@ jobs:
       - name: 设置SSH密钥
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_CURRENT }}
 
       - name: 读取当前版本号
         id: get-current-version

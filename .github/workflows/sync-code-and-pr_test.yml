@@ -180,10 +180,9 @@ jobs:
 
       - name: 使用GitHub API创建PR
         if: steps.check-changes.outputs.has_changes == 'true'
+        env:
+          PR_BODY: ${{ '此PR同步了AutoCommission仓库的最新更新。' + (steps.get-commit-messages.outputs.has_commits == 'true' && format('\n\n上次同步以来的变更：\n{0}', steps.get-commit-messages.outputs.commits) || '') }}
         run: |
-          # 生成PR的body内容
-          PR_BODY="此PR同步了AutoCommission仓库的最新更新。${{ steps.get-commit-messages.outputs.has_commits == 'true' && '\n\n上次同步以来的变更：\n${{ steps.get-commit-messages.outputs.commits }}' || '' }}"
-          
           # 使用curl调用GitHub API创建PR，目标仓库改为fork仓库
           curl -X POST \
             -H "Authorization: token ${{ secrets.SYNC_TOKEN }}" \

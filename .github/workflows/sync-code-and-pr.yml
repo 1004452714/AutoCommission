@@ -7,6 +7,14 @@ on:
         description: '版本号（自动递增，可指定，必须有两个点分隔,例：0.98.1）'
         required: false
         type: string
+      pr_target:
+        description: 'PR 目标仓库'
+        required: true
+        type: choice
+        default: 'upstream'
+        options:
+          - fork
+          - upstream
 
 jobs:
   update-version:
@@ -78,6 +86,11 @@ jobs:
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ref: main
+
+      - name: 拉取最新更改
+        run: |
+          git pull origin main
 
       - name: 配置Git
         run: |
@@ -101,12 +114,12 @@ jobs:
           fetch-depth: 0
           sparse-checkout: |
             repo/js/AutoCommission
-      
+
       - name: 添加上游仓库
         run: |
           cd fork
           git remote add upstream git@github.com:babalae/bettergi-scripts-list.git
-      
+
       - name: 同步上游仓库（变基）
         run: |
           cd fork
@@ -116,7 +129,7 @@ jobs:
           git rebase upstream/main
           # 如果变基成功，推送更新到fork仓库
           git push origin main --force-with-lease
-      
+
       - name: 创建唯一分支名
         id: create-branch-name
         run: |
@@ -178,30 +191,48 @@ jobs:
           git commit -m "同步AutoCommission更新"
           git push origin ${{ steps.create-branch-name.outputs.branch_name }}
 
+      - name: 读取当前版本号
+        id: get-version
+        run: |
+          CURRENT_VERSION=$(jq -r .version manifest.json)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
       - name: 使用GitHub API创建PR
         if: steps.check-changes.outputs.has_changes == 'true'
         run: |
-          PR_BODY="此PR同步了AutoCommission仓库的最新更新。"
+          PR_BODY="同步[AutoCommission](https://github.com/1004452714/AutoCommission/commits/main/)仓库的更新"
           if [ "${{ steps.get-commit-messages.outputs.has_commits }}" = "true" ]; then
             # 当has_commits为true时，追加提交信息内容
             PR_BODY="${PR_BODY}
-            
+          
             上次同步以来的变更：
             ${{ steps.get-commit-messages.outputs.commits }}"
           fi
 
           # 转义特殊字符，避免JSON报错（必须保留，否则换行符会破坏JSON格式）
           PR_BODY_ESCAPED=$(echo "$PR_BODY" | jq -R -s '.')
+          
+          # 根据选择的目标仓库决定PR的目标
+          if [ "${{ github.event.inputs.pr_target }}" = "upstream" ]; then
+            # 向上游仓库创建PR
+            TARGET_REPO="babalae/bettergi-scripts-list"
+            HEAD_BRANCH="1004452714:${{ steps.create-branch-name.outputs.branch_name }}"
+          else
+            # 向fork仓库创建PR（测试用）
+            TARGET_REPO="1004452714/bettergi-scripts-list"
+            HEAD_BRANCH="${{ steps.create-branch-name.outputs.branch_name }}"
+          fi
+          
           # 调用GitHub API创建PR
           curl -X POST \
           -H "Authorization: token ${{ secrets.SYNC_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/babalae/bettergi-scripts-list/pulls \
+          https://api.github.com/repos/$TARGET_REPO/pulls \
           -d @- <<- EOF
               {
-                "title": "同步AutoCommission更新",
+                "title": "AutoCommission ${{ steps.get-version.outputs.current_version }}",
                 "body": $PR_BODY_ESCAPED,
-                "head": "1004452714:${{ steps.create-branch-name.outputs.branch_name }}",
+                "head": "$HEAD_BRANCH",
                 "base": "main"
               }
           EOF

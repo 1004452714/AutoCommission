@@ -65,17 +65,66 @@ jobs:
         run: |
           jq --arg version "${{ steps.calculate-new-version.outputs.new_version }}" '.version = $version' manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
 
+      - name: 自动补齐README更新日志
+        run: |
+          python3 <<'PY'
+          from datetime import datetime
+          from pathlib import Path
+          import os
+          import re
+
+          readme_path = Path("README.md")
+          new_version = os.environ["NEW_VERSION"]
+          now = datetime.now().astimezone()
+          today = now.strftime("%Y-%m-%d")
+          current_time = now.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+          original_bytes = readme_path.read_bytes() if readme_path.exists() else b""
+          newline = "\r\n" if b"\r\n" in original_bytes else "\n"
+          readme = original_bytes.decode("utf-8") if original_bytes else ""
+          readme = readme.replace("\r\n", "\n")
+          changelog_heading = "## 更新日志"
+          if changelog_heading not in readme:
+              readme = readme.rstrip() + f"\n\n{changelog_heading}\n"
+
+          before, heading, after = readme.partition(changelog_heading)
+          version_pattern = re.compile(r"^###\s+(?:当前版本|上一版本|旧版本)：" + re.escape(new_version) + r"(?:\s|$)", re.MULTILINE)
+          if version_pattern.search(after):
+              with readme_path.open("w", encoding="utf-8", newline=newline) as file:
+                  file.write(readme)
+              raise SystemExit(0)
+
+          current_pattern = re.compile(r"^(###\s+)当前版本：", re.MULTILINE)
+          after = current_pattern.sub(r"\1上一版本：", after, count=1)
+          new_entry = (
+              f"\n### 当前版本：{new_version} ({today})\n"
+              f"- 修复已知问题 ({current_time})\n"
+          )
+          with readme_path.open("w", encoding="utf-8", newline=newline) as file:
+              file.write(before + heading + new_entry + after)
+          PY
+        env:
+          NEW_VERSION: ${{ steps.calculate-new-version.outputs.new_version }}
+
       - name: 提交版本号更新
         run: |
-          git add manifest.json
-          git commit -m "Bump version to ${{ steps.calculate-new-version.outputs.new_version }}"
-          git push origin HEAD:main
+          git add manifest.json README.md
+          if git diff --cached --quiet; then
+            echo "版本号和README更新日志没有变化，跳过提交。"
+          else
+            git commit -m "Bump version to ${{ steps.calculate-new-version.outputs.new_version }}"
+            git push origin HEAD:main
+          fi
 
       - name: 创建并推送tag
         run: |
           TAG_NAME="v${{ steps.calculate-new-version.outputs.new_version }}"
-          git tag $TAG_NAME
-          git push origin $TAG_NAME
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME 已存在，跳过创建。"
+          else
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+          fi
 
   sync-and-pr:
     runs-on: ubuntu-latest
